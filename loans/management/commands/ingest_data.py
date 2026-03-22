@@ -1,6 +1,7 @@
 import openpyxl
 from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.db import connection
 from loans.models import Customer, Loan
 from dateutil import parser as date_parser
 import os
@@ -31,7 +32,9 @@ class Command(BaseCommand):
 
         customers = []
         for row in ws.iter_rows(min_row=2, values_only=True):
+            # Excel columns: Customer ID, First Name, Last Name, Age, Phone Number, Monthly Salary, Approved Limit
             customer_id, first_name, last_name, age, phone_number, monthly_salary, approved_limit = row
+
             if customer_id is None:
                 continue
 
@@ -49,6 +52,16 @@ class Command(BaseCommand):
         Customer.objects.bulk_create(customers, ignore_conflicts=True)
         self.stdout.write(self.style.SUCCESS(f'  Ingested {len(customers)} customers'))
 
+        # Reset auto-increment sequence so new registrations don't clash with ingested IDs
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT setval(
+                    pg_get_serial_sequence('loans_customer', 'customer_id'),
+                    (SELECT MAX(customer_id) FROM loans_customer)
+                )
+            """)
+        self.stdout.write(self.style.SUCCESS('  Reset customer ID sequence'))
+
     def ingest_loans(self):
         filepath = settings.DATA_DIR / 'loan_data.xlsx'
         if not os.path.exists(filepath):
@@ -62,7 +75,8 @@ class Command(BaseCommand):
         skipped = 0
 
         for row in ws.iter_rows(min_row=2, values_only=True):
-            customer_id, loan_id,  loan_amount, tenure, interest_rate, monthly_repayment, emis_paid_on_time, start_date, end_date = row
+            # Excel columns: Customer ID, Loan ID, Loan Amount, Tenure, Interest Rate, Monthly Payment, EMIs Paid on Time, Date of Approval, End Date
+            customer_id, loan_id, loan_amount, tenure, interest_rate, monthly_repayment, emis_paid_on_time, start_date, end_date = row
 
             if loan_id is None or customer_id is None:
                 continue
@@ -91,6 +105,16 @@ class Command(BaseCommand):
 
         Loan.objects.bulk_create(loans, ignore_conflicts=True)
         self.stdout.write(self.style.SUCCESS(f'  Ingested {len(loans)} loans (skipped {skipped})'))
+
+        # Reset auto-increment sequence so new loans don't clash with ingested IDs
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT setval(
+                    pg_get_serial_sequence('loans_loan', 'loan_id'),
+                    (SELECT MAX(loan_id) FROM loans_loan)
+                )
+            """)
+        self.stdout.write(self.style.SUCCESS('  Reset loan ID sequence'))
 
     def _parse_date(self, value):
         if value is None:
