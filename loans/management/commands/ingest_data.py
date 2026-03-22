@@ -31,8 +31,7 @@ class Command(BaseCommand):
 
         customers = []
         for row in ws.iter_rows(min_row=2, values_only=True):
-            customer_id, first_name, last_name, phone_number, monthly_salary, approved_limit, current_debt = row
-
+            customer_id, first_name, last_name, age, phone_number, monthly_salary, approved_limit = row
             if customer_id is None:
                 continue
 
@@ -40,10 +39,11 @@ class Command(BaseCommand):
                 customer_id=int(customer_id),
                 first_name=str(first_name) if first_name else '',
                 last_name=str(last_name) if last_name else '',
+                age=int(age) if age else None,
                 phone_number=int(phone_number) if phone_number else 0,
                 monthly_salary=int(monthly_salary) if monthly_salary else 0,
                 approved_limit=int(approved_limit) if approved_limit else 0,
-                current_debt=float(current_debt) if current_debt else 0.0,
+                current_debt=0.0,
             ))
 
         Customer.objects.bulk_create(customers, ignore_conflicts=True)
@@ -62,7 +62,7 @@ class Command(BaseCommand):
         skipped = 0
 
         for row in ws.iter_rows(min_row=2, values_only=True):
-            customer_id, loan_id, loan_amount, tenure, interest_rate, monthly_repayment, emis_paid_on_time, start_date, end_date = row
+            customer_id, loan_id,  loan_amount, tenure, interest_rate, monthly_repayment, emis_paid_on_time, start_date, end_date = row
 
             if loan_id is None or customer_id is None:
                 continue
